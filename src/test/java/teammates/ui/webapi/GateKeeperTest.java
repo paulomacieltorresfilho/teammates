@@ -1,8 +1,6 @@
 package teammates.ui.webapi;
 
 import org.junit.Test;
-import org.testng.annotations.BeforeMethod;
-import org.testng.annotations.BeforeTest;
 
 import teammates.common.datatransfer.attributes.CourseAttributes;
 import teammates.common.datatransfer.attributes.InstructorAttributes;
@@ -12,7 +10,7 @@ public class GateKeeperTest extends BaseTestCase {
 
   private InstructorAttributes instructor;
   private CourseAttributes course;
-  private final String PRIVILEGE_NAME = "canModifyCourse";
+  private final String PRIVILEGE_NAME = "canviewstudentinsection";
   private GateKeeper gateKeeper;
 
   private Exception exception;
@@ -30,7 +28,7 @@ public class GateKeeperTest extends BaseTestCase {
     ______TS("without instructor");
     exception = assertThrows(
         UnauthorizedAccessException.class,
-        () -> gateKeeper.verifyAccessible(instructor, course, PRIVILEGE_NAME));
+        () -> runMethod());
 
     message = exception.getMessage();
     assertEquals(message, "Trying to access system using a non-existent instructor entity");
@@ -67,6 +65,58 @@ public class GateKeeperTest extends BaseTestCase {
     message = exception.getMessage();
     assertEquals(message, "Course [" + course.getId() + "] is not accessible to instructor ["
         + instructor.getEmail() + "]");
-  }
 
+    ______TS("instructor without course or section privilege");
+    instructor = InstructorAttributes.builder("courseId1", "instructor@mail.com").build();
+    course = CourseAttributes.builder("courseId1").build();
+
+    instructor.getPrivileges().updatePrivilege(PRIVILEGE_NAME, false);
+    instructor.getPrivileges().updatePrivilege("sectionTest", PRIVILEGE_NAME, false);
+
+    exception = assertThrows(
+        UnauthorizedAccessException.class,
+        () -> runMethod());
+
+    assertEquals(exception.getMessage(), "Course [" + course.getId() + "] is not accessible to instructor ["
+        + instructor.getEmail() + "] for privilege [" + PRIVILEGE_NAME + "]");
+
+    ______TS("instructor without section privilege but with course privilege");
+    instructor = InstructorAttributes.builder("courseId1", "instructor@mail.com").build();
+    course = CourseAttributes.builder("courseId1").build();
+
+    instructor.getPrivileges().updatePrivilege(PRIVILEGE_NAME, true);
+    instructor.getPrivileges().updatePrivilege("sectionTest", PRIVILEGE_NAME, false);
+
+    try {
+      runMethod();
+    } catch (UnauthorizedAccessException e) {
+      fail("Method was not supposed to throw UnauthorizedAccessException");
+    }
+
+    ______TS("instructor without course privilege but with section privilege");
+    instructor = InstructorAttributes.builder("courseId1", "instructor@mail.com").build();
+    course = CourseAttributes.builder("courseId1").build();
+
+    instructor.getPrivileges().updatePrivilege(PRIVILEGE_NAME, false);
+    instructor.getPrivileges().updatePrivilege("sectionTest", PRIVILEGE_NAME, true);
+
+    try {
+      runMethod();
+    } catch (UnauthorizedAccessException e) {
+      fail("Method was not supposed to throw UnauthorizedAccessException");
+    }
+
+    ______TS("instructor with both course and section privileges");
+    instructor = InstructorAttributes.builder("courseId1", "instructor@mail.com").build();
+    course = CourseAttributes.builder("courseId1").build();
+
+    instructor.getPrivileges().updatePrivilege(PRIVILEGE_NAME, true);
+    instructor.getPrivileges().updatePrivilege("sectionTest", PRIVILEGE_NAME, true);
+
+    try {
+      runMethod();
+    } catch (UnauthorizedAccessException e) {
+      fail("Method was not supposed to throw UnauthorizedAccessException");
+    }
+  }
 }
